@@ -1,0 +1,471 @@
+{
+  "$defs": {
+    "CaseDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "structured-output",
+            "tool-calls"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "context": {
+          "additionalProperties": true,
+          "title": "Context",
+          "type": "object"
+        },
+        "contract": {
+          "$ref": "#/$defs/Contract"
+        },
+        "failure_mode": {
+          "title": "Failure Mode",
+          "type": "string"
+        },
+        "fixtures": {
+          "items": {
+            "$ref": "#/$defs/Fixture"
+          },
+          "minItems": 2,
+          "title": "Fixtures",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "category",
+        "title",
+        "summary",
+        "failure_mode",
+        "input",
+        "contract",
+        "fixtures"
+      ],
+      "title": "CaseDefinition",
+      "type": "object"
+    },
+    "CollectionProjectionEqualityCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "context_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Context Collection Pointer",
+          "type": "string"
+        },
+        "context_fields": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Context Fields",
+          "type": "array"
+        },
+        "kind": {
+          "const": "collection_projection_equality",
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Output Collection Pointer",
+          "type": "string"
+        },
+        "output_fields": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Output Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "output_collection_pointer",
+        "output_fields",
+        "context_collection_pointer",
+        "context_fields"
+      ],
+      "title": "CollectionProjectionEqualityCheck",
+      "type": "object"
+    },
+    "Contract": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ReferenceIntegrityCheck"
+              },
+              {
+                "$ref": "#/$defs/UniqueByCheck"
+              },
+              {
+                "$ref": "#/$defs/ExactlyOneCheck"
+              },
+              {
+                "$ref": "#/$defs/SameLengthCheck"
+              },
+              {
+                "$ref": "#/$defs/CollectionProjectionEqualityCheck"
+              }
+            ]
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "output_schema": {
+          "additionalProperties": true,
+          "title": "Output Schema",
+          "type": "object"
+        }
+      },
+      "required": [
+        "output_schema"
+      ],
+      "title": "Contract",
+      "type": "object"
+    },
+    "ExactlyOneCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Fields",
+          "type": "array"
+        },
+        "kind": {
+          "const": "exactly_one",
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_object_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Output Object Pointer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "output_object_pointer",
+        "fields"
+      ],
+      "title": "ExactlyOneCheck",
+      "type": "object"
+    },
+    "ExpectedViolation": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "path": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "path"
+      ],
+      "title": "ExpectedViolation",
+      "type": "object"
+    },
+    "Fixture": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_valid": {
+          "title": "Expected Valid",
+          "type": "boolean"
+        },
+        "expected_violations": {
+          "items": {
+            "$ref": "#/$defs/ExpectedViolation"
+          },
+          "title": "Expected Violations",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "output": {
+          "title": "Output"
+        }
+      },
+      "required": [
+        "name",
+        "note",
+        "output",
+        "expected_valid"
+      ],
+      "title": "Fixture",
+      "type": "object"
+    },
+    "PackMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "license": {
+          "title": "License",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "license",
+        "provenance"
+      ],
+      "title": "PackMetadata",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "contains_customer_data": {
+          "const": false,
+          "title": "Contains Customer Data",
+          "type": "boolean"
+        },
+        "contains_production_logs": {
+          "const": false,
+          "title": "Contains Production Logs",
+          "type": "boolean"
+        },
+        "method": {
+          "const": "synthetic-clean-room",
+          "title": "Method",
+          "type": "string"
+        },
+        "public_sources": {
+          "items": {
+            "format": "uri",
+            "pattern": "^https?://",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Public Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "method",
+        "contains_customer_data",
+        "contains_production_logs",
+        "public_sources"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "ReferenceIntegrityCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "context_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Context Collection Pointer",
+          "type": "string"
+        },
+        "context_id_field": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Id Field"
+        },
+        "kind": {
+          "const": "reference_integrity",
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Output Collection Pointer",
+          "type": "string"
+        },
+        "output_reference_field": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Reference Field"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "output_collection_pointer",
+        "context_collection_pointer"
+      ],
+      "title": "ReferenceIntegrityCheck",
+      "type": "object"
+    },
+    "SameLengthCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "context_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Context Collection Pointer",
+          "type": "string"
+        },
+        "kind": {
+          "const": "same_length",
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Output Collection Pointer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "output_collection_pointer",
+        "context_collection_pointer"
+      ],
+      "title": "SameLengthCheck",
+      "type": "object"
+    },
+    "UniqueByCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "kind": {
+          "const": "unique_by",
+          "title": "Kind",
+          "type": "string"
+        },
+        "output_collection_pointer": {
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "title": "Output Collection Pointer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "output_collection_pointer"
+      ],
+      "title": "UniqueByCheck",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Structural case-pack schema. Run failset verify for cross-field authoring invariants and fixture expectation checks.",
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/CaseDefinition"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    },
+    "pack": {
+      "$ref": "#/$defs/PackMetadata"
+    }
+  },
+  "required": [
+    "pack",
+    "cases"
+  ],
+  "title": "Failset case pack",
+  "type": "object"
+}

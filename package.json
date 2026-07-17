@@ -1,0 +1,13 @@
+{
+  "name": "failset-schema-verification",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:schema": "node scripts/validate_case_schema.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "html-validate": "10.4.0"
+  }
+}

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+          version: "0.11.29"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked --extra dev --group security --group release
+      - run: uv run failset verify
+      - run: uv run python scripts/build_case_schema.py --check
+      - if: matrix.python-version == '3.13'
+        run: npm ci --ignore-scripts
+      - if: matrix.python-version == '3.13'
+        run: npm run check:schema
+      - run: uv run pytest
+      - run: uv build --wheel --no-build-isolation
+      - if: matrix.python-version == '3.13'
+        run: uv run pip-audit
+      - if: matrix.python-version == '3.13'
+        run: uv run bandit -q -r src
+      - if: matrix.python-version == '3.13'
+        run: uv run zizmor .github/workflows/ci.yml .github/workflows/release.yml

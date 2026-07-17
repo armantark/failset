@@ -1,0 +1,555 @@
+{
+  "pack": {
+    "name": "Failset tool-call sampler",
+    "version": "2026.07-sampler",
+    "license": "MIT",
+    "provenance": {
+      "method": "synthetic-clean-room",
+      "contains_customer_data": false,
+      "contains_production_logs": false,
+      "public_sources": [
+        "https://json-schema.org/draft/2020-12/json-schema-validation",
+        "https://www.rfc-editor.org/rfc/rfc8259"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "schema_version": "1.0",
+      "id": "tool.known-name",
+      "category": "tool-calls",
+      "title": "User intent does not create a tool",
+      "summary": "Reject plausible tool names that are not present in the runtime registry.",
+      "failure_mode": "The user asks to send an email, but the runtime only exposes create_email_draft and the model invents send_email.",
+      "input": {
+        "user_request": "Email the revised schedule to operations.",
+        "available_tools": ["create_email_draft", "get_schedule"]
+      },
+      "context": {},
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "arguments"],
+          "properties": {
+            "name": {"type": "string", "enum": ["create_email_draft", "get_schedule"]},
+            "arguments": {"type": "object"}
+          }
+        },
+        "checks": []
+      },
+      "fixtures": [
+        {
+          "name": "registered-tool",
+          "note": "The call remains inside the actual registry.",
+          "output": {"name": "create_email_draft", "arguments": {"topic": "revised schedule"}},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "invented-tool",
+          "note": "The name matches intent but not runtime capability.",
+          "output": {"name": "send_email", "arguments": {"topic": "revised schedule"}},
+          "expected_valid": false,
+          "expected_violations": [{"code": "schema.enum", "path": "/name"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.strict-arguments",
+      "category": "tool-calls",
+      "title": "Unadvertised arguments are not feature flags",
+      "summary": "Reject a model-invented argument even when it mirrors the user's language.",
+      "failure_mode": "The user asks for a private draft, and the model adds private even though the tool schema has no such control.",
+      "input": {
+        "user_request": "Create a private draft titled Q3 staffing.",
+        "tool": {
+          "name": "create_note",
+          "arguments": ["title", "body"]
+        }
+      },
+      "context": {},
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "arguments"],
+          "properties": {
+            "name": {"const": "create_note"},
+            "arguments": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["title", "body"],
+              "properties": {
+                "title": {"type": "string"},
+                "body": {"type": "string"}
+              }
+            }
+          }
+        },
+        "checks": []
+      },
+      "fixtures": [
+        {
+          "name": "declared-arguments",
+          "note": "Only schema-owned arguments are supplied.",
+          "output": {"name": "create_note", "arguments": {"title": "Q3 staffing", "body": ""}},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "invented-privacy-flag",
+          "note": "The model cannot manufacture a security control.",
+          "output": {"name": "create_note", "arguments": {"title": "Q3 staffing", "body": "", "private": true}},
+          "expected_valid": false,
+          "expected_violations": [{"code": "schema.additionalProperties", "path": "/arguments"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.argument-type",
+      "category": "tool-calls",
+      "title": "Formatted money is not a numeric argument",
+      "summary": "Catch display strings before they reach arithmetic or payment code.",
+      "failure_mode": "The model copies a currency-formatted source value into an amount field defined as a number.",
+      "input": {
+        "user_request": "Record a reimbursement of $19.95 for parking.",
+        "tool": {"name": "record_expense", "amount_type": "number"}
+      },
+      "context": {},
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "arguments"],
+          "properties": {
+            "name": {"const": "record_expense"},
+            "arguments": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["amount", "memo"],
+              "properties": {
+                "amount": {"type": "number", "minimum": 0},
+                "memo": {"type": "string"}
+              }
+            }
+          }
+        },
+        "checks": []
+      },
+      "fixtures": [
+        {
+          "name": "numeric-amount",
+          "note": "Currency formatting is removed at the protocol boundary.",
+          "output": {"name": "record_expense", "arguments": {"amount": 19.95, "memo": "parking"}},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "formatted-amount",
+          "note": "A readable amount is still the wrong machine type.",
+          "output": {"name": "record_expense", "arguments": {"amount": "$19.95", "memo": "parking"}},
+          "expected_valid": false,
+          "expected_violations": [{"code": "schema.type", "path": "/arguments/amount"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.result-xor-error",
+      "category": "tool-calls",
+      "title": "A tool result cannot succeed and fail together",
+      "summary": "Enforce exactly one terminal branch when provider wrappers return ambiguous payloads.",
+      "failure_mode": "A retry wrapper preserves a stale result while also attaching the final error, and downstream code chooses the wrong branch.",
+      "input": {
+        "operation": "calendar.create_event",
+        "attempts": ["timeout", "provider_error"]
+      },
+      "context": {},
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "result": {"type": ["object", "null"]},
+            "error": {"type": ["object", "null"]}
+          }
+        },
+        "checks": [
+          {
+            "kind": "exactly_one",
+            "code": "terminal.exactly-one-branch",
+            "output_object_pointer": "",
+            "fields": ["result", "error"]
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "error-only",
+          "note": "The terminal state is unambiguous.",
+          "output": {"result": null, "error": {"code": "provider_error"}},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "stale-result-and-error",
+          "note": "Two populated branches leave downstream behavior undefined.",
+          "output": {"result": {"event_id": "evt-17"}, "error": {"code": "provider_error"}},
+          "expected_valid": false,
+          "expected_violations": [{"code": "terminal.exactly-one-branch", "path": ""}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.batch-cardinality",
+      "category": "tool-calls",
+      "title": "Batch outputs must account for every request",
+      "summary": "Catch silently dropped work even when every returned item is valid.",
+      "failure_mode": "The model returns two valid tool calls for a three-item request, and item-level schema validation alone passes.",
+      "input": {
+        "user_request": "Create reminders for the three listed renewals.",
+        "renewals": ["domain", "insurance", "parking"]
+      },
+      "context": {
+        "requests": [
+          {"id": "renewal-domain"},
+          {"id": "renewal-insurance"},
+          {"id": "renewal-parking"}
+        ]
+      },
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls"],
+          "properties": {
+            "calls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["request_id"],
+                "properties": {"request_id": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "checks": [
+          {
+            "kind": "collection_projection_equality",
+            "code": "batch.cardinality-mismatch",
+            "output_collection_pointer": "/calls",
+            "output_fields": ["request_id"],
+            "context_collection_pointer": "/requests",
+            "context_fields": ["id"]
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "complete-batch",
+          "note": "Every input item has a corresponding call.",
+          "output": {"calls": [{"request_id": "renewal-domain"}, {"request_id": "renewal-insurance"}, {"request_id": "renewal-parking"}]},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "silently-dropped-item",
+          "note": "All returned calls are valid, but the batch is incomplete.",
+          "output": {"calls": [{"request_id": "renewal-domain"}, {"request_id": "renewal-insurance"}]},
+          "expected_valid": false,
+          "expected_violations": [{"code": "batch.cardinality-mismatch", "path": "/calls"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.correlation-integrity",
+      "category": "tool-calls",
+      "title": "Correlation IDs must originate in the request",
+      "summary": "Reject a well-formed response that cannot be joined back to submitted work.",
+      "failure_mode": "The model normalizes an opaque request identifier and breaks the caller's correlation map.",
+      "input": {
+        "requests": [
+          {"request_id": "req_01HT-7A", "task": "lookup"},
+          {"request_id": "req_01HT-7B", "task": "lookup"}
+        ]
+      },
+      "context": {
+        "requests": [
+          {"id": "req_01HT-7A"},
+          {"id": "req_01HT-7B"}
+        ]
+      },
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["results"],
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["request_id", "value"],
+                "properties": {
+                  "request_id": {"type": "string"},
+                  "value": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "checks": [
+          {
+            "kind": "reference_integrity",
+            "code": "reference.unknown-request",
+            "output_collection_pointer": "/results",
+            "output_reference_field": "request_id",
+            "context_collection_pointer": "/requests",
+            "context_id_field": "id"
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "opaque-id-preserved",
+          "note": "The caller-owned identifier round-trips exactly.",
+          "output": {"results": [{"request_id": "req_01HT-7A", "value": "found"}]},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "normalized-id",
+          "note": "A cosmetically cleaner identifier no longer joins.",
+          "output": {"results": [{"request_id": "REQ-01HT-7A", "value": "found"}]},
+          "expected_valid": false,
+          "expected_violations": [{"code": "reference.unknown-request", "path": "/results/0"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.unique-call-ids",
+      "category": "tool-calls",
+      "title": "Retry generation must not duplicate call IDs",
+      "summary": "Prevent two logical actions from sharing one response-routing key.",
+      "failure_mode": "A regenerated batch reuses the first call identifier, so the runtime attaches both results to one waiter.",
+      "input": {
+        "user_request": "Look up both tracking numbers.",
+        "tracking_numbers": ["PKG-14", "PKG-15"]
+      },
+      "context": {},
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls"],
+          "properties": {
+            "calls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "tracking_number"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "tracking_number": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "checks": [
+          {
+            "kind": "unique_by",
+            "code": "collection.duplicate-call-id",
+            "output_collection_pointer": "/calls",
+            "field": "id"
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "distinct-call-ids",
+          "note": "Each action can be routed independently.",
+          "output": {"calls": [{"id": "call-1", "tracking_number": "PKG-14"}, {"id": "call-2", "tracking_number": "PKG-15"}]},
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "reused-call-id",
+          "note": "Valid individual calls still collide at the batch boundary.",
+          "output": {"calls": [{"id": "call-1", "tracking_number": "PKG-14"}, {"id": "call-1", "tracking_number": "PKG-15"}]},
+          "expected_valid": false,
+          "expected_violations": [{"code": "collection.duplicate-call-id", "path": "/calls/1"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.authorization-integrity",
+      "category": "tool-calls",
+      "title": "Rejected tool calls must not reach execution",
+      "summary": "Enforce exact-set execution: nothing rejected runs, and nothing approved is silently dropped.",
+      "failure_mode": "A human approves the personal-session revocation and rejects the admin-session revocation, but the executor performs both. Unit-testing the approval decision alone misses the later execution mismatch.",
+      "input": {
+        "user_request": "Revoke both listed sessions.",
+        "proposed_calls": [
+          {"call_id": "call-personal", "action": "revoke_session", "decision": "approved"},
+          {"call_id": "call-admin", "action": "revoke_session", "decision": "rejected"}
+        ]
+      },
+      "context": {
+        "authorized_calls": [
+          {"call_id": "call-personal", "action": "revoke_session"}
+        ]
+      },
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["executed_calls"],
+          "properties": {
+            "executed_calls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["call_id", "action"],
+                "properties": {
+                  "call_id": {"type": "string"},
+                  "action": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "checks": [
+          {
+            "kind": "collection_projection_equality",
+            "code": "authorization.execution-mismatch",
+            "output_collection_pointer": "/executed_calls",
+            "output_fields": ["call_id", "action"],
+            "context_collection_pointer": "/authorized_calls",
+            "context_fields": ["call_id", "action"]
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "approved-call-only",
+          "note": "Only the call admitted by the authorization layer reaches execution.",
+          "output": {
+            "executed_calls": [
+              {"call_id": "call-personal", "action": "revoke_session"}
+            ]
+          },
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "rejected-call-executed",
+          "note": "call-admin is well formed but explicitly rejected, and its side effect still runs.",
+          "output": {
+            "executed_calls": [
+              {"call_id": "call-personal", "action": "revoke_session"},
+              {"call_id": "call-admin", "action": "revoke_session"}
+            ]
+          },
+          "expected_valid": false,
+          "expected_violations": [{"code": "authorization.execution-mismatch", "path": "/executed_calls"}]
+        }
+      ]
+    },
+    {
+      "schema_version": "1.0",
+      "id": "tool.effect-receipt-integrity",
+      "category": "tool-calls",
+      "title": "Success claims must match execution receipts",
+      "summary": "Reject a schema-valid completion report that disagrees with observed tool outcomes.",
+      "failure_mode": "One tool call fails, but the model summarizes every requested operation as completed, creating a false success signal for the user and downstream workflow.",
+      "input": {
+        "user_request": "Create both renewal reminders and report the result of each operation.",
+        "operations": ["op-domain", "op-insurance"]
+      },
+      "context": {
+        "receipts": [
+          {"operation_id": "op-domain", "status": "completed"},
+          {"operation_id": "op-insurance", "status": "failed"}
+        ]
+      },
+      "contract": {
+        "output_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reported_operations"],
+          "properties": {
+            "reported_operations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["operation_id", "status"],
+                "properties": {
+                  "operation_id": {"type": "string"},
+                  "status": {"type": "string", "enum": ["completed", "failed"]}
+                }
+              }
+            }
+          }
+        },
+        "checks": [
+          {
+            "kind": "collection_projection_equality",
+            "code": "effect.receipt-mismatch",
+            "output_collection_pointer": "/reported_operations",
+            "output_fields": ["operation_id", "status"],
+            "context_collection_pointer": "/receipts",
+            "context_fields": ["operation_id", "status"]
+          }
+        ]
+      },
+      "fixtures": [
+        {
+          "name": "claims-match-receipts",
+          "note": "The user-facing report agrees with the observed execution outcomes.",
+          "output": {
+            "reported_operations": [
+              {"operation_id": "op-domain", "status": "completed"},
+              {"operation_id": "op-insurance", "status": "failed"}
+            ]
+          },
+          "expected_valid": true,
+          "expected_violations": []
+        },
+        {
+          "name": "failed-call-reported-complete",
+          "note": "The shape and enum values are valid, but the completion claim contradicts the execution receipt.",
+          "output": {
+            "reported_operations": [
+              {"operation_id": "op-domain", "status": "completed"},
+              {"operation_id": "op-insurance", "status": "completed"}
+            ]
+          },
+          "expected_valid": false,
+          "expected_violations": [{"code": "effect.receipt-mismatch", "path": "/reported_operations"}]
+        }
+      ]
+    }
+  ]
+}
