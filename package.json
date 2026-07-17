@@ -8,6 +8,6 @@
   "devDependencies": {
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
-    "html-validate": "10.4.0"
+    "html-validate": "11.5.5"
   }
 }
